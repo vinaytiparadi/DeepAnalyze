@@ -1,7 +1,6 @@
 "use client";
 
 import { DATA_ANALYSIS_PROMPT_PRESETS } from "@/lib/prompt-presets";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -18,26 +17,37 @@ interface PresetSelectorProps {
 export function PresetSelector({ selectedId, onSelect }: PresetSelectorProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {DATA_ANALYSIS_PROMPT_PRESETS.map((preset) => (
-          <Tooltip key={preset.id}>
-            <TooltipTrigger asChild>
-              <Badge
-                variant={selectedId === preset.id ? "default" : "outline"}
-                className={cn(
-                  "cursor-pointer text-sm px-3 py-1.5 transition-all hover:scale-105",
-                  selectedId === preset.id &&
-                    "ring-2 ring-ring ring-offset-2 ring-offset-background"
-                )}
-                onClick={() => onSelect(preset.id, preset.prompt.en)}
+      <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-sm">
+        <span className="text-muted-foreground/60 mr-1.5 select-none">
+          Try:
+        </span>
+        {DATA_ANALYSIS_PROMPT_PRESETS.map((preset, i) => (
+          <span key={preset.id} className="inline-flex items-center">
+            {i > 0 && (
+              <span
+                className="text-border mx-1.5 select-none"
+                aria-hidden="true"
               >
-                {preset.label.en}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[250px]">
-              <p className="text-sm">{preset.description.en}</p>
-            </TooltipContent>
-          </Tooltip>
+                ·
+              </span>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onSelect(preset.id, preset.prompt.en)}
+                  className={cn(
+                    "text-muted-foreground transition-colors duration-150 hover:text-primary",
+                    selectedId === preset.id && "text-primary font-medium"
+                  )}
+                >
+                  {preset.label.en}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[250px]">
+                <p className="text-sm">{preset.description.en}</p>
+              </TooltipContent>
+            </Tooltip>
+          </span>
         ))}
       </div>
     </TooltipProvider>

@@ -37,7 +37,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="dark" storageKey="theme">
+        <ThemeProvider attribute="class" defaultTheme="light" storageKey="theme">
           {children}
         </ThemeProvider>
       </body>

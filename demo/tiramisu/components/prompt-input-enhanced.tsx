@@ -54,7 +54,7 @@ export function PromptInputEnhanced({
       onValueChange={onInputChange}
       isLoading={isLoading}
       onSubmit={onSubmit}
-      className="w-full border-foreground/20"
+      className="w-full border-border/50 bg-background/80 backdrop-blur-sm shadow-lg shadow-primary/[0.04]"
     >
       {files.length > 0 && (
         <div className="flex flex-wrap gap-2 px-2 pt-2">
@@ -82,13 +82,13 @@ export function PromptInputEnhanced({
         className="dark:bg-transparent text-base"
       />
 
-      <PromptInputActions className="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
-        {/* Left: attach + theme */}
+      <PromptInputActions className="flex items-center justify-between gap-2 px-2 pb-1 pt-3">
+        {/* Left: attach + report theme */}
         <div className="flex items-center gap-1">
           <PromptInputAction tooltip="Attach files">
             <label
               htmlFor="file-upload"
-              className="hover:bg-secondary flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors"
+              className="hover:bg-accent flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors"
             >
               <input
                 ref={uploadInputRef}

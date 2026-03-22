@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import { DitheringBackground } from "@/components/ui/dithering-background";
 import { TextScramble } from "@/components/ui/text-scrammble";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PromptInputEnhanced } from "@/components/prompt-input-enhanced";
 import { PresetSelector } from "@/components/preset-selector";
 import { CUPCAKE_URL } from "@/lib/config";
+
+const ease = [0.22, 1, 0.36, 1] as const;
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -30,48 +33,64 @@ export default function Home() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
+      {/* 3D dithering shader background */}
       <DitheringBackground />
 
+      {/* Theme toggle */}
       <div className="absolute top-5 right-5 z-20">
         <ThemeToggle />
       </div>
 
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 gap-10">
-
-        {/* ── Hero: DeepAgent + Marquee ── */}
-        <div className="w-full max-w-5xl select-none">
-          <div
-            className="font-display font-extrabold leading-[0.88] tracking-[-0.04em] text-[clamp(4rem,9vw,6rem)] text-center"
+      {/* Hero — single composition */}
+      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 gap-8">
+        {/* Brand */}
+        <motion.div
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease }}
+          className="select-none"
+        >
+          <h1
+            className="font-display font-extrabold tracking-[-0.03em] text-[clamp(4.5rem,12vw,9rem)] leading-[0.85] text-center"
             style={{
-              background:
-                "linear-gradient(150deg, var(--foreground) 10%, color-mix(in srgb, var(--foreground) 25%, transparent) 100%)",
+              background: "var(--brand-gradient)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
             }}
           >
             Autolytics
-          </div>
+          </h1>
+        </motion.div>
 
-          <div className="mt-3 flex justify-center">
-            <TextScramble
-              phrases={[
-                'Agentic Analysis',
-                'Upload. Analyze. Discover.',
-                'AI-Powered Insights',
-                'From Data to Decisions',
-              ]}
-              pauseMs={2000}
-              loop
-              autoStart
-              textClass="font-display font-semibold tracking-[-0.02em] text-[clamp(1.4rem,2.6vw,2.0rem)] text-muted-foreground text-center"
-              dudClass="text-muted-foreground/30"
-            />
-          </div>
-        </div>
+        {/* Tagline */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.35 }}
+          className="flex justify-center"
+        >
+          <TextScramble
+            phrases={[
+              "Autonomous Data Science",
+              "Upload. Analyze. Discover.",
+              "From Data to Decisions",
+            ]}
+            pauseMs={2500}
+            loop
+            autoStart
+            textClass="font-display font-semibold tracking-[-0.01em] text-[clamp(1.15rem,2.4vw,1.65rem)] text-muted-foreground text-center"
+            dudClass="text-muted-foreground/25"
+          />
+        </motion.div>
 
-        {/* ── Prompt + Presets ── */}
-        <div className="w-full max-w-3xl space-y-5">
+        {/* Prompt input — the visual anchor */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.55, ease }}
+          className="w-full max-w-2xl mt-2"
+        >
           <PromptInputEnhanced
             input={input}
             onInputChange={setInput}
@@ -82,12 +101,20 @@ export default function Home() {
             isLoading={false}
             onSubmit={handleAnalyze}
           />
+        </motion.div>
+
+        {/* Preset hints */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.75 }}
+          className="w-full max-w-2xl"
+        >
           <PresetSelector
             selectedId={selectedPresetId}
             onSelect={handlePresetSelect}
           />
-        </div>
-
+        </motion.div>
       </div>
     </main>
   );

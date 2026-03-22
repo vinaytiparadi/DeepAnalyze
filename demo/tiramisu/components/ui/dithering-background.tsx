@@ -17,12 +17,14 @@ export function DitheringBackground({ className }: DitheringBackgroundProps) {
 
   const isDark = !mounted || resolvedTheme !== 'light';
 
-  const colorBack = isDark ? '#000000' : '#ffffff';
-  const colorFront = isDark ? '#ffffff' : '#000000';
-  const fallbackBg = isDark ? 'bg-black' : 'bg-white';
+  /* Warm-tinted dithering instead of pure B&W */
+  const colorBack = isDark ? '#100E0C' : '#FAF8F5';
+  const colorFront = isDark ? '#C4A88E' : '#3D2E24';
+  const fallbackBg = isDark ? 'bg-[#100E0C]' : 'bg-[#FAF8F5]';
+
   const centerDim = isDark
-    ? 'radial-gradient(ellipse 55% 60% at 50% 50%, rgba(0,0,0,0.75) 0%, transparent 100%)'
-    : 'radial-gradient(ellipse 55% 60% at 50% 50%, rgba(255,255,255,0.82) 0%, transparent 100%)';
+    ? 'radial-gradient(ellipse 55% 60% at 50% 50%, rgba(16,14,12,0.78) 0%, transparent 100%)'
+    : 'radial-gradient(ellipse 55% 60% at 50% 50%, rgba(250,248,245,0.84) 0%, transparent 100%)';
 
   return (
     <>

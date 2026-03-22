@@ -3,65 +3,78 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Palette: "Dusk" — burnt sienna + warm stone
+ * Concept: the moment data becomes insight — warm, bold, grounded.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #000000;
-  --card: #f8f8f8;
-  --card-foreground: #000000;
-  --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #000000;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f1f1;
-  --secondary-foreground: #000000;
-  --muted: #f8f8f8;
-  --muted-foreground: #666666;
-  --accent: #000000;
-  --accent-foreground: #ffffff;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: #e5e5e5;
-  --input: #ffffff;
-  --ring: rgba(0, 0, 0, 0.3);
-  --radius: 0.5rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #000000;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #e5e5e5;
-  --sidebar-ring: rgba(255, 255, 255, 0.3);
+  --background: #FAF8F5;
+  --foreground: #1C1814;
+  --card: #FFFFFF;
+  --card-foreground: #1C1814;
+  --popover: #FFFFFF;
+  --popover-foreground: #1C1814;
+  --primary: #BE4A2F;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F3EDE6;
+  --secondary-foreground: #5C4A3E;
+  --muted: #F0EBE4;
+  --muted-foreground: #7A6E64;
+  --accent: #FDF2E9;
+  --accent-foreground: #BE4A2F;
+  --destructive: #C62828;
+  --destructive-foreground: #FFFFFF;
+  --border: #E4DED6;
+  --input: #FFFFFF;
+  --ring: rgba(190, 74, 47, 0.25);
+  --radius: 0.625rem;
+
+  /* Brand */
+  --brand-gradient: linear-gradient(135deg, #BE4A2F 0%, #D4783C 50%, #E5A84B 100%);
+
+  /* Sidebar (shadcn compat) */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1C1814;
+  --sidebar-primary: #BE4A2F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FDF2E9;
+  --sidebar-accent-foreground: #BE4A2F;
+  --sidebar-border: #E4DED6;
+  --sidebar-ring: rgba(190, 74, 47, 0.25);
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #ffffff;
-  --card: #1a1a1a;
-  --card-foreground: #ffffff;
-  --popover: #1a1a1a;
-  --popover-foreground: #ffffff;
-  --primary: #ffffff;
-  --primary-foreground: #000000;
-  --secondary: #333333;
-  --secondary-foreground: #ffffff;
-  --muted: #1a1a1a;
-  --muted-foreground: #a3a3a3;
-  --accent: #ffffff;
-  --accent-foreground: #000000;
-  --destructive: #ffffff;
-  --destructive-foreground: #000000;
-  --border: #333333;
-  --input: #1a1a1a;
-  --ring: rgba(255, 255, 255, 0.3);
-  --sidebar: #000000;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #000000;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ffffff;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-border: #333333;
-  --sidebar-ring: rgba(255, 255, 255, 0.3);
+  --background: #100E0C;
+  --foreground: #F5F0EA;
+  --card: #1E1A16;
+  --card-foreground: #F5F0EA;
+  --popover: #1E1A16;
+  --popover-foreground: #F5F0EA;
+  --primary: #E8754A;
+  --primary-foreground: #1A0E08;
+  --secondary: #241E18;
+  --secondary-foreground: #D4C4B4;
+  --muted: #1E1A16;
+  --muted-foreground: #A09486;
+  --accent: #2C1E14;
+  --accent-foreground: #E8754A;
+  --destructive: #EF5350;
+  --destructive-foreground: #FFFFFF;
+  --border: #302A24;
+  --input: #1E1A16;
+  --ring: rgba(232, 117, 74, 0.3);
+
+  --brand-gradient: linear-gradient(135deg, #E8754A 0%, #F0A060 50%, #F5C76A 100%);
+
+  --sidebar: #100E0C;
+  --sidebar-foreground: #F5F0EA;
+  --sidebar-primary: #E8754A;
+  --sidebar-primary-foreground: #1A0E08;
+  --sidebar-accent: #2C1E14;
+  --sidebar-accent-foreground: #E8754A;
+  --sidebar-border: #302A24;
+  --sidebar-ring: rgba(232, 117, 74, 0.3);
 }
 
 @theme inline {
@@ -101,30 +114,12 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-@keyframes scroll-left {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-@keyframes scroll-right {
-  from { transform: translateX(-50%); }
-  to   { transform: translateX(0); }
-}
-@keyframes scroll-up {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-50%); }
-}
-@keyframes scroll-down {
-  from { transform: translateY(-50%); }
-  to   { transform: translateY(0); }
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-transparent text-foreground;
-    background: transparent !important;
+    @apply bg-background text-foreground;
   }
 
   * {
