@@ -1,30 +1,52 @@
 @echo off
 setlocal
+set PYTHONIOENCODING=utf-8
 
-echo Starting DeepAnalyze Tiramisu Frontend
+echo Starting DeepAnalyze Tiramisu
 echo ========================================
 
 :: Ensure logs directory exists
 if not exist logs mkdir logs
 
-:: Define port
+:: Define ports
+set BACKEND_PORT=8200
 set TIRAMISU_PORT=3000
 
-:: Kill existing process on port
+:: Kill existing processes on ports
+call :KillPort %BACKEND_PORT%
 call :KillPort %TIRAMISU_PORT%
 
+echo Cleanup completed.
+echo.
+
+:: Start backend API
+echo Starting backend API...
+start /B "Tiramisu Backend" cmd /c "python backend.py > logs\backend.log 2>&1"
+echo Backend started in background.
+echo API running on: http://localhost:%BACKEND_PORT%
+
+:: Wait for backend to initialize
+timeout /t 3 /nobreak >nul
+
+:: Start frontend
 echo.
 echo Starting Tiramisu frontend...
-start /B "DeepAnalyze Tiramisu" cmd /c "npm run dev -- -p %TIRAMISU_PORT% > logs\tiramisu.log 2>&1"
-echo Tiramisu started in background.
+start /B "Tiramisu Frontend" cmd /c "npm run dev -- -p %TIRAMISU_PORT% > logs\tiramisu.log 2>&1"
+echo Frontend started in background.
+echo Frontend running on: http://localhost:%TIRAMISU_PORT%
+
 echo.
-echo Service URL:
-echo   Tiramisu: http://localhost:%TIRAMISU_PORT%
+echo All services started successfully.
 echo.
-echo Log file:
-echo   Tiramisu: logs\tiramisu.log
+echo Service URLs:
+echo   Backend API: http://localhost:%BACKEND_PORT%
+echo   Frontend:    http://localhost:%TIRAMISU_PORT%
 echo.
-echo Stop: run stop.bat
+echo Log files:
+echo   Backend:  logs\backend.log
+echo   Frontend: logs\tiramisu.log
+echo.
+echo Stop services: run stop.bat
 goto :eof
 
 :KillPort
