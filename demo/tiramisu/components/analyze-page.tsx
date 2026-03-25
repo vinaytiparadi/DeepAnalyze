@@ -66,6 +66,13 @@ interface ChatMessage {
   content: string;
 }
 
+interface CompletedTurn {
+  role: "user" | "assistant";
+  content: string;
+  artifacts?: WorkspaceFile[];
+  fileNames?: string[];
+}
+
 // ─── Section config ──────────────────────────────────────────────────
 
 const SECTION_META: Record<SectionType, { label: string; color: string }> = {
@@ -119,6 +126,7 @@ export function AnalyzePage({
   const [followUpInput, setFollowUpInput] = useState("");
   const [followUpFiles, setFollowUpFiles] = useState<File[]>([]);
   const [workspaceFileNames, setWorkspaceFileNames] = useState<string[]>([]);
+  const [completedTurns, setCompletedTurns] = useState<CompletedTurn[]>([]);
   const followUpFileInputRef = useRef<HTMLInputElement>(null);
 
   const pendingContentRef = useRef("");
@@ -151,7 +159,7 @@ export function AnalyzePage({
   useEffect(() => {
     if (!autoScrollRef.current || !scrollContainerRef.current) return;
     scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
-  }, [accumulatedContent, sections, messages]);
+  }, [accumulatedContent, sections, messages, completedTurns]);
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -276,23 +284,32 @@ export function AnalyzePage({
   const handleSendFollowUp = useCallback(async () => {
     const text = followUpInput.trim();
     if (!text && followUpFiles.length === 0) return;
+    const followUpFileNames = followUpFiles.map((f) => f.name);
+    let updatedWsFiles = workspaceFileNames;
     if (followUpFiles.length > 0) {
       try {
         await uploadFiles(sessionId, followUpFiles);
-        setWorkspaceFileNames((prev) => [...prev, ...followUpFiles.map((f) => f.name)]);
+        updatedWsFiles = [...workspaceFileNames, ...followUpFileNames];
+        setWorkspaceFileNames(updatedWsFiles);
       } catch { /* */ }
     }
     const userMsg: ChatMessage = { role: "user", content: text || "(attached files)" };
     const assistantMsg: ChatMessage = { role: "assistant", content: accumulatedContent };
     const newMessages = [...messages, assistantMsg, userMsg];
     setMessages(newMessages);
+    // Snapshot the completed assistant turn + new user turn for rendering history
+    setCompletedTurns(prev => [
+      ...prev,
+      { role: "assistant", content: accumulatedContent, artifacts: [...dedupedArtifacts] },
+      { role: "user", content: text || "(attached files)", fileNames: followUpFileNames },
+    ]);
     pendingContentRef.current = "";
     displayedContentRef.current = "";
     setAccumulatedContent("");
     setFollowUpInput("");
     setFollowUpFiles([]);
-    await startStream(newMessages, workspaceFileNames);
-  }, [followUpInput, followUpFiles, sessionId, accumulatedContent, messages, workspaceFileNames, startStream]);
+    await startStream(newMessages, updatedWsFiles);
+  }, [followUpInput, followUpFiles, sessionId, accumulatedContent, messages, workspaceFileNames, startStream, dedupedArtifacts]);
 
   const handleClearWorkspace = useCallback(async () => {
     try { await clearWorkspace(sessionId); } catch { /* */ }
@@ -462,45 +479,93 @@ export function AnalyzePage({
     </motion.div>
   );
 
-  // ─── Build section groups (Code + Execute pairs) ──────────────────
-  const sectionElements: React.ReactNode[] = [];
-  for (let i = 0; i < sections.length; i++) {
-    const section = sections[i];
-    const next = sections[i + 1];
-    const meta = SECTION_META[section.type];
-    const isStreaming = !section.isComplete;
+  // ─── Build section elements from parsed sections ───────────────────
+  const buildSectionElements = (sectionList: ParsedSection[], keyPrefix = "") => {
+    const elements: React.ReactNode[] = [];
+    for (let i = 0; i < sectionList.length; i++) {
+      const section = sectionList[i];
+      const next = sectionList[i + 1];
+      const meta = SECTION_META[section.type];
 
-    // Skip Execute sections that are attached to a Code section above
-    if (section.type === "Execute" && i > 0 && sections[i - 1].type === "Code" && sections[i - 1].isComplete) {
-      continue; // Already rendered as attached output
+      if (section.type === "Execute" && i > 0 && sectionList[i - 1].type === "Code" && sectionList[i - 1].isComplete) {
+        continue;
+      }
+
+      const isCodeWithOutput = section.type === "Code" && section.isComplete && next?.type === "Execute" && next.isComplete;
+
+      elements.push(
+        <motion.div
+          key={`${keyPrefix}${section.id}`}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="section-row"
+        >
+          <div className="section-indicator">
+            <div className="indicator-line-segment" style={{ height: 8 }} />
+            <div className="indicator-dot" style={{ backgroundColor: meta.color }} />
+            <span className="indicator-label" style={{ color: meta.color }}>{meta.label}</span>
+            <div className="indicator-line-segment flex-1" />
+          </div>
+          <div className="section-content">
+            {renderSection(section, next)}
+            {isCodeWithOutput && renderAttachedOutput(next!)}
+          </div>
+        </motion.div>
+      );
     }
+    return elements;
+  };
 
-    const isCodeWithOutput = section.type === "Code" && section.isComplete && next?.type === "Execute" && next.isComplete;
-
-    sectionElements.push(
-      <motion.div
-        key={section.id}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="section-row"
-      >
-        {/* Section type indicator: line → dot → label → line (no line through label) */}
-        <div className="section-indicator">
-          <div className="indicator-line-segment" style={{ height: 8 }} />
-          <div className="indicator-dot" style={{ backgroundColor: meta.color }} />
-          <span className="indicator-label" style={{ color: meta.color }}>{meta.label}</span>
-          <div className="indicator-line-segment flex-1" />
+  const renderArtifactsStrip = (artifactsList: WorkspaceFile[], keyPrefix = "") => {
+    if (artifactsList.length === 0) return null;
+    // Deduplicate
+    const seen = new Map<string, WorkspaceFile>();
+    for (const f of artifactsList) {
+      const existing = seen.get(f.name);
+      if (!existing || f.path.length < existing.path.length) seen.set(f.name, f);
+    }
+    const deduped = Array.from(seen.values());
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-6 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-px flex-1 bg-border/60" />
+          <span className="text-[10px] font-display text-muted-foreground/60 tracking-wide">generated files</span>
+          <div className="h-px flex-1 bg-border/60" />
         </div>
-
-        {/* Section content */}
-        <div className="section-content">
-          {renderSection(section, next)}
-          {isCodeWithOutput && renderAttachedOutput(next!)}
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+          {deduped.map((file, i) => {
+            const Icon = getFileIcon(file.name);
+            const url = getDownloadUrl(sessionId, file.path);
+            const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].some((ext) => file.name.endsWith(ext));
+            return (
+              <motion.a key={`${keyPrefix}art-${i}`} href={url} target="_blank" rel="noopener noreferrer"
+                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
+                className="flex-shrink-0 w-40 rounded-lg border bg-card/60 hover:bg-card hover:border-primary/30 transition-all p-3 group">
+                {isImage ? (
+                  <div className="w-full h-[72px] rounded-md overflow-hidden bg-muted mb-2">
+                    <img src={url} alt={file.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-full h-[72px] rounded-md bg-muted flex items-center justify-center mb-2">
+                    <Icon className="size-5 text-muted-foreground/30" />
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] font-medium truncate flex-1">{file.name}</p>
+                  <Download className="size-3 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0" />
+                </div>
+                {file.size > 0 && <p className="text-[9px] text-muted-foreground/50 mt-0.5">{(file.size / 1024).toFixed(0)} KB</p>}
+              </motion.a>
+            );
+          })}
         </div>
       </motion.div>
     );
-  }
+  };
+
+  // Current live stream sections
+  const sectionElements = buildSectionElements(sections);
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
@@ -552,6 +617,32 @@ export function AnalyzePage({
             </motion.div>
           )}
 
+          {/* Completed conversation turns (previous assistant responses + follow-up user messages) */}
+          {completedTurns.map((turn, i) => {
+            if (turn.role === "assistant") {
+              const turnSections = parseSections(turn.content);
+              const turnPreTag = getPreTagContent(turn.content);
+              return (
+                <div key={`turn-${i}`}>
+                  {turnPreTag && (
+                    <div className="text-[15px] text-muted-foreground whitespace-pre-wrap mt-2 mb-4">{turnPreTag}</div>
+                  )}
+                  <div className="sections-timeline">
+                    {buildSectionElements(turnSections, `t${i}-`)}
+                  </div>
+                  {turn.artifacts && turn.artifacts.length > 0 && renderArtifactsStrip(turn.artifacts, `t${i}-`)}
+                </div>
+              );
+            }
+            // User turn
+            return (
+              <div key={`turn-${i}`} className="mt-6">
+                {renderUserBubble(turn.content, turn.fileNames || [], `followup-${i}`)}
+              </div>
+            );
+          })}
+
+          {/* Current live stream */}
           {preTagContent && (phase === "streaming" || phase === "complete") && (
             <div className="text-[15px] text-muted-foreground whitespace-pre-wrap mt-2 mb-4">{preTagContent}</div>
           )}
@@ -562,52 +653,13 @@ export function AnalyzePage({
             </div>
           )}
 
-          {/* Timeline spine + sections */}
+          {/* Timeline spine + sections (current/live) */}
           <div className="sections-timeline">
             {sectionElements}
           </div>
 
-          {/* Artifacts strip */}
-          {phase === "complete" && dedupedArtifacts.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-6 mb-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-px flex-1 bg-border/60" />
-                <span className="text-[10px] font-display text-muted-foreground/60 tracking-wide">generated files</span>
-                <div className="h-px flex-1 bg-border/60" />
-              </div>
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-                {dedupedArtifacts.map((file, i) => {
-                  const Icon = getFileIcon(file.name);
-                  const url = getDownloadUrl(sessionId, file.path);
-                  const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].some((ext) => file.name.endsWith(ext));
-                  return (
-                    <motion.a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
-                      className="flex-shrink-0 w-40 rounded-lg border bg-card/60 hover:bg-card hover:border-primary/30 transition-all p-3 group">
-                      {isImage ? (
-                        <div className="w-full h-[72px] rounded-md overflow-hidden bg-muted mb-2">
-                          <img src={url} alt={file.name} className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-full h-[72px] rounded-md bg-muted flex items-center justify-center mb-2">
-                          <Icon className="size-5 text-muted-foreground/30" />
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-[11px] font-medium truncate flex-1">{file.name}</p>
-                        <Download className="size-3 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0" />
-                      </div>
-                      {file.size > 0 && <p className="text-[9px] text-muted-foreground/50 mt-0.5">{(file.size / 1024).toFixed(0)} KB</p>}
-                    </motion.a>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-
-          {messages.slice(1).filter((m) => m.role === "user").map((m, i) => (
-            <div key={`followup-${i}`} className="mt-6">{renderUserBubble(m.content, [], `followup-${i}`)}</div>
-          ))}
+          {/* Artifacts strip (current/live) */}
+          {phase === "complete" && dedupedArtifacts.length > 0 && renderArtifactsStrip(dedupedArtifacts, "live-")}
 
           <div className="h-24" />
         </div>
