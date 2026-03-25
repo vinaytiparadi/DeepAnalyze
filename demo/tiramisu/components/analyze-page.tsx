@@ -561,29 +561,50 @@ export function AnalyzePage({
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 sm:px-6 h-11 border-b border-border/30 bg-background/90 backdrop-blur-xl z-50">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => router.push("/")}>
-            <ArrowLeft className="size-3.5" />
-          </Button>
-          <span className="font-display font-bold text-[15px] tracking-tight" style={{
-            background: "var(--brand-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-          }}>Autolytics</span>
-          {phase === "streaming" && (
-            <span className="ml-2 inline-flex items-center gap-1.5 text-[10px] text-primary font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              analyzing
-            </span>
-          )}
-        </div>
-        <ThemeToggle />
-      </header>
+    <div className="flex flex-col h-[100dvh] w-full bg-background overflow-hidden relative">
+      
+      {/* Background grain */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] mix-blend-overlay" />
 
-      {/* Scroll area */}
-      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 pt-6 pb-2">
+      {/* Extreme Minimal Pinned Header */}
+      <div className="absolute top-2.5 sm:top-3 inset-x-4 sm:inset-x-5 z-40 pointer-events-none flex justify-between items-start">
+        {/* Top Left Pinned */}
+        <div className="pointer-events-auto flex flex-col gap-0.5">
+          <span className="font-display font-black text-lg sm:text-xl tracking-tighter text-foreground lowercase leading-none">
+            auto<span className="text-primary">lytics.</span>
+          </span>
+          <div className="flex items-center gap-1.5 mt-0.5 px-0.5">
+             <div className="w-4 h-px bg-primary/40" />
+             <span className="font-mono text-[7px] text-muted-foreground uppercase tracking-[0.3em]">Session_Active</span>
+          </div>
+        </div>
+
+        {/* Top Right Pinned */}
+        <div className="pointer-events-auto flex items-start gap-2 sm:gap-4">
+           <div className="hidden sm:flex flex-col items-end gap-1 mt-0.5">
+             <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-[0.2em]">System State</span>
+             {phase === "streaming" ? (
+               <div className="flex items-center gap-1.5">
+                 <div className="w-1.5 h-1.5 bg-primary rounded-none animate-ping" />
+                 <span className="font-mono text-[8px] text-primary uppercase tracking-[0.2em] font-bold">Synthesizing</span>
+               </div>
+             ) : (
+               <div className="flex items-center gap-1.5">
+                 <div className="w-1 h-1 bg-border rounded-none" />
+                 <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-[0.2em]">Idle</span>
+               </div>
+             )}
+           </div>
+           <ThemeToggle />
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pt-12 sm:pt-14">
+        
+        {/* Scroll area */}
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8 md:px-12 pb-2">
 
           {renderUserBubble(prompt, files.map((f) => f.name), "initial")}
 
@@ -717,5 +738,6 @@ export function AnalyzePage({
         </div>
       </div>
     </div>
+  </div>
   );
 }
