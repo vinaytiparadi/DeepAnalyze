@@ -364,7 +364,7 @@ export function AnalyzePage({
               </pre>
             ) : (
               <CodeBlockCode code={code} language={lang}
-                theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
+                theme={resolvedTheme === "dark" ? "vitesse-dark" : "horizon-bright"}
                 className="text-[13px] [&>pre]:!bg-transparent" />
             )}
           </div>
