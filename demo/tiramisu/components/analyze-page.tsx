@@ -134,7 +134,6 @@ export function AnalyzePage({
   const rafRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   // ── Derived ───────────────────────────────────────────────────────
@@ -155,23 +154,16 @@ export function AnalyzePage({
     return Array.from(seen.values());
   }, [artifacts]);
 
-  // ── Auto-scroll ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!autoScrollRef.current || !scrollContainerRef.current) return;
-    scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
-  }, [accumulatedContent, sections, messages, completedTurns]);
-
+  // ── Scroll tracking ───────────────────────────────────────────────
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    autoScrollRef.current = atBottom;
     setShowScrollBtn(!atBottom);
   }, []);
 
   const scrollToBottom = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
-    autoScrollRef.current = true;
     setShowScrollBtn(false);
   }, []);
 
@@ -665,19 +657,22 @@ export function AnalyzePage({
         </div>
       </div>
 
-      {/* Scroll-to-bottom */}
-      <div className="fixed bottom-36 right-6 z-40">
-        <Button variant="outline" size="icon"
-          className={cn("h-8 w-8 rounded-full shadow-md bg-card transition-all duration-200",
-            showScrollBtn ? "opacity-100 translate-y-0 scale-100" : "opacity-0 pointer-events-none translate-y-2 scale-95")}
-          onClick={scrollToBottom}>
-          <ArrowDown className="size-3.5" />
-        </Button>
-      </div>
-
       {/* Bottom chat bar */}
       <div className="sticky bottom-0 z-50 border-t border-border/30 bg-background/85 backdrop-blur-xl px-4 py-2.5">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-3xl relative">
+          {/* Scroll to bottom — floats above the prompt input */}
+          <div className={cn(
+            "absolute -top-8 left-1/2 -translate-x-1/2 transition-all duration-200",
+            showScrollBtn ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-1 pointer-events-none"
+          )}>
+            <button
+              onClick={scrollToBottom}
+              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground bg-background/90 border border-border/50 hover:border-border rounded-full px-3 py-1 shadow-sm backdrop-blur-sm transition-colors"
+            >
+              <ArrowDown className="size-3" />
+              Scroll to bottom
+            </button>
+          </div>
           <input ref={followUpFileInputRef} type="file" multiple className="hidden" onChange={handleFollowUpFileChange} />
           <PromptInput value={followUpInput} onValueChange={setFollowUpInput}
             isLoading={phase === "streaming"} onSubmit={phase === "streaming" ? handleStop : handleSendFollowUp}
