@@ -19,7 +19,29 @@ const pending = new Map<string, TransferData>();
 
 const SS_PREFIX = "transfer:";
 
+/** Wipe stale per-session entries when starting a fresh analysis in the same tab. */
+function cleanupStaleEntries(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (
+        key &&
+        (key.startsWith(SS_PREFIX) ||
+          key.startsWith("snapshot:") ||
+          key.startsWith("session:"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+  } catch {
+    /* noop */
+  }
+}
+
 export function storeTransfer(data: TransferData): string {
+  cleanupStaleEntries();
   const id = crypto.randomUUID();
   pending.set(id, data);
 
@@ -44,7 +66,11 @@ const ACTIVE_SESSION_KEY = "active_session_id";
 
 /** Save the active session ID so it can be stopped on refresh. */
 export function setActiveSession(sessionId: string): void {
-  try { sessionStorage.setItem(ACTIVE_SESSION_KEY, sessionId); } catch { /* noop */ }
+  try {
+    sessionStorage.setItem(ACTIVE_SESSION_KEY, sessionId);
+  } catch {
+    /* noop */
+  }
 }
 
 /** Pop the active session ID (returns it and removes from storage). */
@@ -53,7 +79,9 @@ export function popActiveSession(): string | null {
     const id = sessionStorage.getItem(ACTIVE_SESSION_KEY);
     if (id) sessionStorage.removeItem(ACTIVE_SESSION_KEY);
     return id;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function consumeTransfer(id: string): TransferData | undefined {
@@ -61,7 +89,7 @@ export function consumeTransfer(id: string): TransferData | undefined {
   const mem = pending.get(id);
   if (mem) {
     pending.delete(id);
-    try { sessionStorage.removeItem(SS_PREFIX + id); } catch { /* noop */ }
+    // Keep sessionStorage entry alive for reload recovery
     return mem;
   }
 
@@ -69,7 +97,7 @@ export function consumeTransfer(id: string): TransferData | undefined {
   try {
     const raw = sessionStorage.getItem(SS_PREFIX + id);
     if (raw) {
-      sessionStorage.removeItem(SS_PREFIX + id);
+      // Keep entry — don't delete, so future reloads can also recover
       const parsed = JSON.parse(raw);
       return {
         prompt: parsed.prompt,
@@ -83,4 +111,14 @@ export function consumeTransfer(id: string): TransferData | undefined {
   }
 
   return undefined;
+}
+
+/** Explicitly remove a transfer entry (used on "Clear workspace"). */
+export function clearTransfer(id: string): void {
+  pending.delete(id);
+  try {
+    sessionStorage.removeItem(SS_PREFIX + id);
+  } catch {
+    /* noop */
+  }
 }

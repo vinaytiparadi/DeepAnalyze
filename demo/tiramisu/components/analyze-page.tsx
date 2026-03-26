@@ -41,7 +41,7 @@ import {
   getDownloadUrl,
   type WorkspaceFile,
 } from "@/lib/api";
-import { setActiveSession } from "@/lib/transfer-store";
+import { setActiveSession, clearTransfer } from "@/lib/transfer-store";
 import {
   parseSections,
   getPreTagContent,
@@ -49,10 +49,22 @@ import {
   type SectionType,
 } from "@/lib/stream-parser";
 import { cn } from "@/lib/utils";
+import { DitheringBackground } from "@/components/ui/dithering-background";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 type Phase = "uploading" | "streaming" | "complete" | "error";
+
+export interface SessionSnapshot {
+  prompt: string;
+  reportTheme: string;
+  presetId: string | null;
+  phase: Phase;
+  accumulatedContent: string;
+  completedTurns: CompletedTurn[];
+  messages: Array<{ role: string; content: string }>;
+  workspaceFileNames: string[];
+}
 
 interface AnalyzePageProps {
   prompt: string;
@@ -60,6 +72,7 @@ interface AnalyzePageProps {
   reportTheme: string;
   presetId: string | null;
   sessionId: string;
+  recoverySnapshot?: SessionSnapshot | null;
 }
 
 interface ChatMessage {
@@ -111,6 +124,7 @@ export function AnalyzePage({
   reportTheme,
   presetId,
   sessionId,
+  recoverySnapshot,
 }: AnalyzePageProps) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
@@ -154,6 +168,18 @@ export function AnalyzePage({
     }
     return Array.from(seen.values());
   }, [artifacts]);
+
+  // ── Save snapshot to sessionStorage on completion ──────────────────
+  useEffect(() => {
+    if (phase !== "complete") return;
+    try {
+      const snap: SessionSnapshot = {
+        prompt, reportTheme, presetId, phase,
+        accumulatedContent, completedTurns, messages, workspaceFileNames,
+      };
+      sessionStorage.setItem(`snapshot:${sessionId}`, JSON.stringify(snap));
+    } catch { /* quota — non-critical */ }
+  }, [phase, sessionId, prompt, reportTheme, presetId, accumulatedContent, completedTurns, messages, workspaceFileNames]);
 
   // ── Scroll tracking ───────────────────────────────────────────────
   const handleScroll = useCallback(() => {
@@ -248,6 +274,23 @@ export function AnalyzePage({
 
   // ── Initial upload ────────────────────────────────────────────────
   useEffect(() => {
+    // Restore from snapshot (completed session recovery)
+    if (recoverySnapshot) {
+      setPhase(recoverySnapshot.phase as Phase);
+      setAccumulatedContent(recoverySnapshot.accumulatedContent);
+      pendingContentRef.current = recoverySnapshot.accumulatedContent;
+      displayedContentRef.current = recoverySnapshot.accumulatedContent;
+      setMessages(recoverySnapshot.messages as ChatMessage[]);
+      setCompletedTurns(recoverySnapshot.completedTurns);
+      setWorkspaceFileNames(recoverySnapshot.workspaceFileNames);
+      setUploadProgress(100);
+      // Re-fetch artifacts from backend (workspace is still intact)
+      fetchWorkspaceFiles(sessionId).then((ws) => {
+        setArtifacts(ws.filter((f) => f.is_generated));
+      }).catch(() => {});
+      return;
+    }
+
     let cancelled = false;
     async function run() {
       try {
@@ -329,6 +372,15 @@ export function AnalyzePage({
     stopRafLoop();
     try { await stopGeneration(sessionId); } catch { /* */ }
     try { await clearWorkspace(sessionId); } catch { /* */ }
+    // Clean up sessionStorage entries for this session
+    try {
+      sessionStorage.removeItem(`snapshot:${sessionId}`);
+      const tid = new URL(window.location.href).searchParams.get("tid");
+      if (tid) {
+        sessionStorage.removeItem(`session:${tid}`);
+        clearTransfer(tid);
+      }
+    } catch { /* noop */ }
     router.push("/");
   }, [sessionId, router, stopRafLoop]);
 
@@ -360,27 +412,22 @@ export function AnalyzePage({
       const hasAttachedOutput = nextSection?.type === "Execute" && nextSection.isComplete;
 
       return (
-        <div className="terminal-card overflow-hidden">
+        <div className="terminal-card overflow-hidden border border-primary/20 bg-background shadow-md">
           {/* Terminal header */}
-          <div className="terminal-header flex items-center gap-2 px-3.5 py-2 bg-zinc-200/80 dark:bg-zinc-800/80 border-b border-zinc-300/50 dark:border-zinc-700/50">
-            <div className="flex gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-400/60 dark:bg-zinc-600/60" />
-            </div>
-            <div className="flex-1 flex items-center gap-2">
-              <Terminal className="size-3 text-muted-foreground/50" />
-              <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-widest">{lang}</span>
+          <div className="terminal-header flex items-center justify-between px-4 py-2 bg-primary/5 border-b border-primary/20">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-4 bg-primary/60" />
+              <span className="text-[10px] font-mono text-primary/80 uppercase tracking-[0.2em] font-bold">{lang}</span>
             </div>
             {!isStreaming && (
-              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-50 hover:opacity-100 transition-opacity"
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-none hover:bg-primary/20 text-primary/60 hover:text-primary transition-colors"
                 onClick={() => handleCopy(code, section.id)}>
-                {copiedId === section.id ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
+                {copiedId === section.id ? <Check className="size-3" /> : <Copy className="size-3" />}
               </Button>
             )}
           </div>
           {/* Code body */}
-          <div className="bg-zinc-100 dark:bg-zinc-900/90">
+          <div className="bg-primary/[0.02]">
             {isLarge || isStreaming ? (
               <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[14px] p-4 leading-[1.65]">
                 <code>{code}</code>
@@ -399,8 +446,12 @@ export function AnalyzePage({
     // ── Execute (standalone, not attached to code) ──────────────────
     if (section.type === "Execute") {
       return (
-        <div className="terminal-output-standalone rounded-lg bg-zinc-100 dark:bg-zinc-900/90 p-4 overflow-x-auto border border-zinc-200/60 dark:border-zinc-800/60">
-          <pre className="font-mono text-[14px] leading-[1.65] text-foreground/85 whitespace-pre-wrap">{section.content}</pre>
+        <div className="terminal-output-standalone rounded-none border-l-2 border-primary/20 bg-primary/[0.03] p-4 overflow-x-auto shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-1.5 h-3 bg-primary/40" />
+            <span className="text-[9px] font-mono text-primary/60 uppercase tracking-widest">stdout</span>
+          </div>
+          <pre className="font-mono text-[13px] leading-[1.65] text-foreground/85 whitespace-pre-wrap pl-3">{section.content}</pre>
         </div>
       );
     }
@@ -425,11 +476,16 @@ export function AnalyzePage({
 
   // ── Render attached execute output (below code) ───────────────────
   const renderAttachedOutput = (section: ParsedSection) => (
-    <div className="mt-2.5 bg-zinc-50 dark:bg-zinc-950/80 border border-zinc-200/60 dark:border-zinc-800/60 p-4 rounded-lg overflow-x-auto">
-      <div className="flex items-center gap-1.5 mb-2.5">
-        <span className="text-[9px] font-mono text-muted-foreground/50 uppercase tracking-widest">stdout</span>
+    <div className="mt-2 text-sm">
+      <div className="flex items-center gap-2">
+         <div className="w-2 h-2 border border-primary/40" />
+         <span className="text-[9px] font-mono text-primary/60 uppercase tracking-widest font-semibold">Execution Output</span>
       </div>
-      <pre className="font-mono text-[14px] leading-[1.65] text-foreground/85 whitespace-pre-wrap">{section.content}</pre>
+      <div className="mt-2 border border-primary/20 bg-primary/5 p-4 rounded-none shadow-inner overflow-x-auto relative">
+         <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary opacity-20" />
+         <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary opacity-20" />
+         <pre className="font-mono text-[13px] leading-[1.65] text-foreground/85 whitespace-pre-wrap">{section.content}</pre>
+      </div>
     </div>
   );
 
@@ -479,18 +535,26 @@ export function AnalyzePage({
   };
 
   const renderUserBubble = (content: string, fileNames: string[], key: string) => (
-    <motion.div key={key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end mb-6">
-      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary/8 dark:bg-primary/12 border border-primary/10 px-4 py-3">
-        <p className="text-[16px] leading-[1.75] whitespace-pre-wrap">{content}</p>
-        {fileNames.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2.5">
-            {fileNames.map((name, i) => (
-              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-primary/8 px-2.5 py-0.5 text-[10.5px] text-primary font-medium">
-                <Paperclip className="size-2.5" />{name}
-              </span>
-            ))}
-          </div>
-        )}
+    <motion.div key={key} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex justify-end mb-10">
+      <div className="max-w-[85%] sm:max-w-[75%] flex flex-col items-end">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-6 sm:w-8 h-px bg-primary/30" />
+          <span className="font-mono text-[9px] text-primary uppercase tracking-[0.2em] font-bold">User</span>
+        </div>
+        <div className="bg-primary/5 border border-primary/20 p-4 sm:p-5 backdrop-blur-md relative shadow-sm hover:border-primary/40 transition-colors group">
+          <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary opacity-50 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary opacity-50 group-hover:opacity-100 transition-opacity" />
+          <p className="text-[14px] sm:text-[15px] leading-[1.8] whitespace-pre-wrap text-right font-medium text-foreground">{content}</p>
+          {fileNames.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-2 mt-4">
+              {fileNames.map((name, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 border border-primary/20 bg-background/50 px-2.5 py-1 text-[10px] sm:text-[11px] font-mono text-primary/80 lowercase tracking-tight shadow-sm">
+                  <Paperclip className="size-3" />{name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -540,35 +604,40 @@ export function AnalyzePage({
     }
     const deduped = Array.from(seen.values());
     return (
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-6 mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-px flex-1 bg-border/60" />
-          <span className="text-[10px] font-display text-muted-foreground/60 tracking-wide">generated files</span>
-          <div className="h-px flex-1 bg-border/60" />
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-10 mb-6 w-full">
+        <div className="flex items-center justify-between mb-4 border-b border-border/40 pb-2">
+          <div className="flex items-center gap-3">
+             <div className="w-1.5 h-1.5 bg-primary/80 rotate-45" />
+             <span className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-foreground font-semibold">Artifacts_Generated</span>
+          </div>
+          <span className="font-mono text-[9px] text-muted-foreground mr-1">[{deduped.length}]</span>
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {deduped.map((file, i) => {
             const Icon = getFileIcon(file.name);
             const url = getDownloadUrl(sessionId, file.path);
             const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].some((ext) => file.name.endsWith(ext));
             return (
               <motion.a key={`${keyPrefix}art-${i}`} href={url} target="_blank" rel="noopener noreferrer"
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
-                className="flex-shrink-0 w-40 rounded-lg border bg-card/60 hover:bg-card hover:border-primary/30 transition-all p-3 group">
+                initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
+                className="flex flex-col rounded-none border border-border/50 bg-background/40 hover:bg-muted/30 hover:border-primary/40 transition-all p-3 sm:p-4 group relative overflow-hidden backdrop-blur-sm">
+                <div className="absolute top-0 right-0 w-8 h-8 bg-primary/5 translate-x-4 -translate-y-4 group-hover:translate-x-2 group-hover:-translate-y-2 transition-transform rotate-45" />
                 {isImage ? (
-                  <div className="w-full h-[72px] rounded-md overflow-hidden bg-muted mb-2">
-                    <img src={url} alt={file.name} className="w-full h-full object-cover" />
+                  <div className="w-full aspect-video mb-3 overflow-hidden bg-muted/50 border border-border/30">
+                    <img src={url} alt={file.name} className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500" />
                   </div>
                 ) : (
-                  <div className="w-full h-[72px] rounded-md bg-muted flex items-center justify-center mb-2">
-                    <Icon className="size-5 text-muted-foreground/30" />
+                  <div className="w-full aspect-video mb-3 bg-muted/30 border border-border/30 flex items-center justify-center">
+                    <Icon className="size-6 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
                   </div>
                 )}
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[11px] font-medium truncate flex-1">{file.name}</p>
-                  <Download className="size-3 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0" />
+                <div className="flex items-start justify-between gap-2 mt-auto">
+                  <div className="flex flex-col overflow-hidden">
+                    <p className="text-[12px] font-mono font-medium truncate group-hover:text-primary transition-colors">{file.name}</p>
+                    {file.size > 0 && <p className="text-[9px] font-mono text-muted-foreground mt-1">{(file.size / 1024).toFixed(1)} KB</p>}
+                  </div>
+                  <Download className="size-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0 mt-0.5" />
                 </div>
-                {file.size > 0 && <p className="text-[9px] text-muted-foreground/50 mt-0.5">{(file.size / 1024).toFixed(0)} KB</p>}
               </motion.a>
             );
           })}
@@ -584,35 +653,42 @@ export function AnalyzePage({
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-background overflow-hidden relative">
       
-      {/* Background grain */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.02] dark:opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] mix-blend-overlay" />
+      {/* Background Ambience */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+         <div className="absolute inset-0 opacity-40 dark:opacity-60 saturate-50 mix-blend-luminosity dark:mix-blend-screen">
+           <DitheringBackground />
+         </div>
+         <div className="absolute top-[10%] left-[10%] w-[60vw] h-[60vw] md:w-[40vw] md:h-[40vw] bg-primary/10 rounded-full blur-[80px] md:blur-[120px] mix-blend-normal" />
+         <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[50vw] bg-[#E5A84B]/10 dark:bg-[#F5C76A]/10 rounded-full blur-[100px] md:blur-[140px]" />
+         <div className="absolute inset-0 z-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] mix-blend-overlay" />
+      </div>
 
       {/* Extreme Minimal Pinned Header */}
-      <div className="absolute top-2.5 sm:top-3 inset-x-4 sm:inset-x-5 z-40 pointer-events-none flex justify-between items-start">
+      <div className="absolute top-3 sm:top-4 inset-x-4 sm:inset-x-8 z-40 pointer-events-none flex justify-between items-start">
         {/* Top Left Pinned */}
-        <div className="pointer-events-auto flex flex-col gap-0.5">
-          <span className="font-display font-black text-lg sm:text-xl tracking-tighter text-foreground lowercase leading-none">
-            auto<span className="text-primary">lytics.</span>
+        <div className="pointer-events-auto flex flex-col gap-1">
+          <span className="font-display font-medium text-lg sm:text-2xl tracking-tight text-foreground lowercase leading-none">
+            analyze<span className="text-primary font-bold italic tracking-tighter">.</span>
           </span>
-          <div className="flex items-center gap-1.5 mt-0.5 px-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5">
              <div className="w-4 h-px bg-primary/40" />
-             <span className="font-mono text-[7px] text-muted-foreground uppercase tracking-[0.3em]">Session_Active</span>
+             <span className="font-mono text-[8px] sm:text-[9px] text-muted-foreground uppercase tracking-[0.3em]">Session_Active</span>
           </div>
         </div>
 
         {/* Top Right Pinned */}
-        <div className="pointer-events-auto flex items-start gap-2 sm:gap-4">
-           <div className="hidden sm:flex flex-col items-end gap-1 mt-0.5">
-             <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-[0.2em]">System State</span>
+        <div className="pointer-events-auto flex items-start gap-4 sm:gap-6">
+           <div className="hidden sm:flex flex-col items-end gap-1.5 mt-1">
+             <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">System State</span>
              {phase === "streaming" ? (
-               <div className="flex items-center gap-1.5">
+               <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 bg-primary rounded-none animate-ping" />
-                 <span className="font-mono text-[8px] text-primary uppercase tracking-[0.2em] font-bold">Synthesizing</span>
+                 <span className="font-mono text-[9px] text-primary uppercase tracking-[0.2em] font-bold">Synthesizing</span>
                </div>
              ) : (
-               <div className="flex items-center gap-1.5">
-                 <div className="w-1 h-1 bg-border rounded-none" />
-                 <span className="font-mono text-[8px] text-muted-foreground uppercase tracking-[0.2em]">Idle</span>
+               <div className="flex items-center gap-2">
+                 <div className="w-1.5 h-1.5 bg-border rounded-none" />
+                 <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-[0.2em]">Idle</span>
                </div>
              )}
            </div>
@@ -621,7 +697,7 @@ export function AnalyzePage({
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pt-12 sm:pt-14">
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pt-10 sm:pt-12">
         
         {/* Scroll area */}
         <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
@@ -700,60 +776,70 @@ export function AnalyzePage({
       </div>
 
       {/* Bottom chat bar */}
-      <div className="sticky bottom-0 z-50 border-t border-border/30 bg-background/85 backdrop-blur-xl px-4 py-2.5">
-        <div className="mx-auto max-w-3xl relative">
+      <div className="sticky bottom-0 z-50 bg-background/60 backdrop-blur-xl px-4 py-4 sm:py-6 relative">
+        {/* Glowing Pedestal Line */}
+        <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none">
+          <div className="w-[80%] max-w-2xl h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] max-w-xl h-12 bg-primary/10 blur-2xl" />
+        </div>
+        <div className="mx-auto max-w-3xl relative z-10">
           {/* Scroll to bottom — floats above the prompt input */}
           <div className={cn(
-            "absolute -top-8 left-1/2 -translate-x-1/2 transition-all duration-200",
-            showScrollBtn ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-1 pointer-events-none"
+            "absolute -top-10 left-1/2 -translate-x-1/2 transition-all duration-200",
+            showScrollBtn ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-2 pointer-events-none"
           )}>
             <button
               onClick={scrollToBottom}
-              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground bg-background/90 border border-border/50 hover:border-border rounded-full px-3 py-1 shadow-sm backdrop-blur-sm transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest text-primary/70 hover:text-primary bg-background/90 border border-primary/20 hover:border-primary/50 px-4 py-1.5 shadow-sm backdrop-blur-sm transition-colors"
             >
               <ArrowDown className="size-3" />
-              Scroll to bottom
+              Scroll
             </button>
           </div>
           <input ref={followUpFileInputRef} type="file" multiple className="hidden" onChange={handleFollowUpFileChange} />
           <PromptInput value={followUpInput} onValueChange={setFollowUpInput}
             isLoading={phase === "streaming"} onSubmit={phase === "streaming" ? handleStop : handleSendFollowUp}
-            disabled={phase === "uploading"} className="border-border/50 bg-background/80 backdrop-blur-sm shadow-lg shadow-primary/[0.04]">
+            disabled={phase === "uploading"} className="!rounded-none border border-primary/20 bg-primary/5 backdrop-blur-md shadow-2xl shadow-primary/10 relative group transition-colors hover:border-primary/40 focus-within:border-primary/60">
+
+            <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
             {followUpFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-2 pt-2">
+              <div className="flex flex-wrap gap-2 px-3 pt-3">
                 {followUpFiles.map((file, i) => (
-                  <div key={i} className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-sm">
-                    <Paperclip className="size-3" />
+                  <div key={i} className="flex items-center gap-1.5 border border-primary/20 bg-background/50 px-2 py-1 text-[11px] font-mono shadow-sm">
+                    <Paperclip className="size-3 text-primary/70" />
                     <span className="max-w-[120px] truncate">{file.name}</span>
-                    <button onClick={() => setFollowUpFiles((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive">
+                    <button onClick={() => setFollowUpFiles((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive text-muted-foreground ml-1">
                       <X className="size-3" />
                     </button>
                   </div>
                 ))}
               </div>
             )}
-            <PromptInputTextarea placeholder={phase === "streaming" ? "Analyzing..." : "Continue the conversation..."} className="text-base dark:bg-transparent" />
-            <PromptInputActions className="flex items-center justify-between gap-2 px-2 pb-1 pt-2">
+            <PromptInputTextarea placeholder={phase === "streaming" ? "Analyzing status..." : "Continue the session..."} className="text-sm font-medium tracking-wide dark:bg-transparent min-h-[44px] px-3 pt-3" />
+            <PromptInputActions className="flex items-center justify-between gap-2 px-2 pb-1.5 pt-2">
               <div className="flex items-center gap-1">
                 <PromptInputAction tooltip="Attach files">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none border border-transparent hover:border-primary/30 hover:bg-primary/10 transition-colors"
                     onClick={(e) => { e.stopPropagation(); followUpFileInputRef.current?.click(); }}>
-                    <Paperclip className="size-4 text-muted-foreground" />
+                    <Paperclip className="size-4 text-primary/70 hover:text-primary transition-colors" />
                   </Button>
                 </PromptInputAction>
                 <PromptInputAction tooltip="Clear workspace & restart">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none border border-transparent hover:border-destructive/30 hover:bg-destructive/10 transition-colors"
                     onClick={(e) => { e.stopPropagation(); handleClearWorkspace(); }}>
-                    <Trash2 className="size-4 text-muted-foreground" />
+                    <Trash2 className="size-4 text-muted-foreground hover:text-destructive transition-colors" />
                   </Button>
                 </PromptInputAction>
               </div>
               <PromptInputAction tooltip={phase === "streaming" ? "Stop" : "Send"}>
-                <Button variant="default" size="icon" className="h-8 w-8 rounded-full"
+                <Button variant="default" size="icon" className="h-8 w-8 rounded-none font-mono shadow-sm transition-all border border-transparent hover:border-primary/50 opacity-90 hover:opacity-100"
                   onClick={phase === "streaming" ? handleStop : handleSendFollowUp}>
                   {phase === "streaming" ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4" />}
                 </Button>
               </PromptInputAction>
+
             </PromptInputActions>
           </PromptInput>
         </div>
