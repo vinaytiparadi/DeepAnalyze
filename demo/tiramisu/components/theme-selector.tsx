@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Palette, Check } from "lucide-react";
+import { Palette, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const REPORT_THEMES = [
@@ -15,6 +15,7 @@ const REPORT_THEMES = [
   { id: "academic", label: "Academic" },
   { id: "minimal", label: "Minimal" },
   { id: "business", label: "Business" },
+  { id: "surprise", label: "Surprise me" },
 ] as const;
 
 interface ThemeSelectorProps {
@@ -63,7 +64,10 @@ export function ThemeSelector({ value, onValueChange }: ThemeSelectorProps) {
                   isSelected && "bg-accent/50 text-accent-foreground border-primary"
                 )}
               >
-                <span className="font-medium">{t.label}</span>
+                <span className="font-medium flex items-center gap-1.5">
+                  {t.label}
+                  {t.id === "surprise" && <Sparkles className="size-3 text-primary/70" />}
+                </span>
                 {isSelected && <Check className="size-3.5 text-muted-foreground" />}
               </button>
             );

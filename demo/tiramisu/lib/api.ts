@@ -101,3 +101,45 @@ export async function clearWorkspace(sessionId: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+// ─── HTML Report Generation ──────────────────────────────────────────
+
+export interface HtmlReportResult {
+  message: string;
+  html_file: string;
+  view_url: string;
+  rel_path: string;
+}
+
+export async function generateHtmlReport(
+  sessionId: string,
+  messages: { role: string; content: string }[],
+  title: string,
+  reportTheme: string,
+  artifacts: { name: string; path: string }[],
+  signal?: AbortSignal
+): Promise<HtmlReportResult> {
+  const res = await fetch(`${BACKEND_URL}/export/report/html`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({
+      session_id: sessionId,
+      messages,
+      title,
+      report_theme: reportTheme,
+      artifacts,
+    }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body.detail || JSON.stringify(body);
+    } catch {
+      detail = await res.text().catch(() => "");
+    }
+    throw new Error(`Report generation failed (${res.status}): ${detail}`);
+  }
+  return res.json();
+}

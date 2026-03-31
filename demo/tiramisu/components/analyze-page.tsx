@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   FileSpreadsheet,
   FileText,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -40,6 +41,7 @@ import {
   fetchWorkspaceFiles,
   getDownloadUrl,
   planAnalysis,
+  generateHtmlReport,
   type WorkspaceFile,
 } from "@/lib/api";
 import { setActiveSession, clearTransfer } from "@/lib/transfer-store";
@@ -50,6 +52,7 @@ import {
   type SectionType,
 } from "@/lib/stream-parser";
 import { cn } from "@/lib/utils";
+import { BACKEND_URL } from "@/lib/config";
 import type { EngineType } from "@/lib/transfer-store";
 
 
@@ -69,6 +72,8 @@ export interface SessionSnapshot {
   plan?: string | null;
   planRouterEnabled?: boolean;
   engine?: EngineType;
+  reportStatus?: "idle" | "generating" | "ready" | "error";
+  reportUrl?: string | null;
 }
 
 interface AnalyzePageProps {
@@ -165,6 +170,13 @@ export function AnalyzePage({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
+  // ── Report generation state ──────────────────────────────────────
+  const [reportStatus, setReportStatus] = useState<"idle" | "generating" | "ready" | "error">("idle");
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const reportAbortRef = useRef<AbortController | null>(null);
+  const reportGenIdRef = useRef(0);
+
   // ── Derived ───────────────────────────────────────────────────────
   const sections = useMemo(() => parseSections(accumulatedContent), [accumulatedContent]);
   const preTagContent = useMemo(() => getPreTagContent(accumulatedContent), [accumulatedContent]);
@@ -190,10 +202,57 @@ export function AnalyzePage({
       const snap: SessionSnapshot = {
         prompt, reportTheme, presetId, phase,
         accumulatedContent, completedTurns, messages, workspaceFileNames, plan, engine,
+        reportStatus: reportStatus === "ready" ? "ready" : undefined,
+        reportUrl: reportStatus === "ready" ? reportUrl : undefined,
       };
       sessionStorage.setItem(`snapshot:${sessionId}`, JSON.stringify(snap));
     } catch { /* quota — non-critical */ }
-  }, [phase, sessionId, prompt, reportTheme, presetId, accumulatedContent, completedTurns, messages, workspaceFileNames, plan]);
+  }, [phase, sessionId, prompt, reportTheme, presetId, accumulatedContent, completedTurns, messages, workspaceFileNames, plan, reportStatus, reportUrl]);
+
+  // ── Auto-trigger HTML report generation on completion ─────────────
+  useEffect(() => {
+    if (phase !== "complete" || reportStatus !== "idle") return;
+    setReportStatus("generating");
+    const genId = ++reportGenIdRef.current;
+    const controller = new AbortController();
+    reportAbortRef.current = controller;
+
+    const fullMessages = [
+      ...messages,
+      { role: "assistant", content: accumulatedContent },
+    ];
+    const artifactPayload = dedupedArtifacts.map((a) => ({ name: a.name, path: a.path }));
+
+    generateHtmlReport(sessionId, fullMessages, prompt, reportTheme, artifactPayload, controller.signal)
+      .then((result) => {
+        if (reportGenIdRef.current !== genId) return; // stale
+        setReportUrl(`${BACKEND_URL}${result.view_url}`);
+        setReportStatus("ready");
+      })
+      .catch((err) => {
+        if (reportGenIdRef.current !== genId) return;
+        if (err instanceof Error && err.name === "AbortError") {
+          setReportStatus("idle");
+        } else {
+          setReportError(err instanceof Error ? err.message : "Report generation failed");
+          setReportStatus("error");
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, reportStatus]);
+
+  const handleCancelReport = useCallback(() => {
+    reportAbortRef.current?.abort();
+    reportAbortRef.current = null;
+    reportGenIdRef.current++;
+    setReportStatus("idle");
+    setReportError(null);
+  }, []);
+
+  const handleRetryReport = useCallback(() => {
+    setReportStatus("idle");
+    setReportError(null);
+  }, []);
 
   // ── Scroll tracking ───────────────────────────────────────────────
   const handleScroll = useCallback(() => {
@@ -299,6 +358,10 @@ export function AnalyzePage({
       setWorkspaceFileNames(recoverySnapshot.workspaceFileNames);
       setPlan(recoverySnapshot.plan ?? null);
       setUploadProgress(100);
+      if (recoverySnapshot.reportStatus === "ready" && recoverySnapshot.reportUrl) {
+        setReportStatus("ready");
+        setReportUrl(recoverySnapshot.reportUrl);
+      }
       // Re-fetch artifacts from backend (workspace is still intact)
       fetchWorkspaceFiles(sessionId).then((ws) => {
         setArtifacts(ws.filter((f) => f.is_generated));
@@ -391,6 +454,12 @@ export function AnalyzePage({
     setAccumulatedContent("");
     setFollowUpInput("");
     setFollowUpFiles([]);
+    // Abort any in-progress report generation and reset
+    reportAbortRef.current?.abort();
+    reportGenIdRef.current++;
+    setReportStatus("idle");
+    setReportUrl(null);
+    setReportError(null);
     await startStream(newMessages, updatedWsFiles);
   }, [followUpInput, followUpFiles, sessionId, accumulatedContent, messages, workspaceFileNames, startStream, dedupedArtifacts]);
 
@@ -889,6 +958,136 @@ export function AnalyzePage({
 
           {/* Artifacts strip (current/live) */}
           {phase === "complete" && dedupedArtifacts.length > 0 && renderArtifactsStrip(dedupedArtifacts, "live-")}
+
+          {/* ── Report generation indicator ─────────────────────── */}
+          {phase === "complete" && reportStatus === "generating" && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-6 mb-2 border border-primary/20 bg-primary/[0.03] p-5 relative overflow-hidden group"
+            >
+              {/* Corner accents */}
+              <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary/50" />
+              <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary/50" />
+              <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary/50" />
+              <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary/50" />
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="size-4 text-primary animate-pulse" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-foreground font-bold">
+                    Generating_Report
+                  </span>
+                </div>
+                <button
+                  onClick={handleCancelReport}
+                  className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-destructive transition-colors px-2 py-1 border border-transparent hover:border-destructive/30"
+                >
+                  <X className="size-3" />
+                  Cancel
+                </button>
+              </div>
+
+              {/* Animated pulse blocks */}
+              <div className="flex items-center gap-2 mb-3">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-6 h-1.5 bg-primary/40"
+                    animate={{
+                      opacity: [0.2, 1, 0.2],
+                      scaleY: [1, 2, 1],
+                    }}
+                    transition={{
+                      duration: 1.4,
+                      repeat: Infinity,
+                      delay: i * 0.18,
+                      ease: "easeInOut",
+                    }}
+                  />
+                ))}
+                <span className="ml-2 font-mono text-[9px] text-muted-foreground uppercase tracking-wider">
+                  Theme: {reportTheme === "surprise" ? "Surprise me" : reportTheme}
+                </span>
+              </div>
+
+              {/* Animated gradient bar */}
+              <div className="w-full h-[2px] bg-muted/30 overflow-hidden rounded-full">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-primary/0 via-primary to-primary/0"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  style={{ width: "60%" }}
+                />
+              </div>
+
+              <p className="font-mono text-[9px] text-muted-foreground/60 mt-3 tracking-wide">
+                Gemini 3.1 Pro is crafting your report — this may take a minute...
+              </p>
+            </motion.div>
+          )}
+
+          {phase === "complete" && reportStatus === "ready" && reportUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-6 mb-2"
+            >
+              <button
+                onClick={() => window.open(reportUrl, "_blank")}
+                className="w-full border border-primary/30 bg-primary/[0.04] hover:bg-primary/[0.08] hover:border-primary/50 p-5 relative overflow-hidden group transition-all duration-300 text-left cursor-pointer"
+              >
+                {/* Corner accents */}
+                <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary/60 group-hover:border-primary transition-colors" />
+                <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary/60 group-hover:border-primary transition-colors" />
+                <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary/60 group-hover:border-primary transition-colors" />
+                <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary/60 group-hover:border-primary transition-colors" />
+
+                {/* Shine sweep on hover */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+
+                <div className="flex items-center gap-4 relative">
+                  <div className="w-12 h-12 border border-primary/30 bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Sparkles className="size-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary font-bold mb-1">
+                      View_Report
+                    </div>
+                    <p className="text-[12px] text-muted-foreground font-mono truncate">
+                      HTML report generated — click to open in new tab
+                    </p>
+                  </div>
+                  <ArrowUp className="size-4 text-primary/60 group-hover:text-primary transition-colors rotate-45 flex-shrink-0" />
+                </div>
+              </button>
+            </motion.div>
+          )}
+
+          {phase === "complete" && reportStatus === "error" && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 mb-2 border border-destructive/20 bg-destructive/[0.03] p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-destructive/80">Report_Error</span>
+                </div>
+                <button
+                  onClick={handleRetryReport}
+                  className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-primary transition-colors px-3 py-1 border border-border/30 hover:border-primary/30"
+                >
+                  Retry
+                </button>
+              </div>
+              {reportError && (
+                <p className="text-[11px] text-muted-foreground mt-2 font-mono truncate">{reportError}</p>
+              )}
+            </motion.div>
+          )}
 
           <div className="h-24" />
         </div>
