@@ -152,7 +152,7 @@ export default function Home() {
             </h1>
 
             <div className="mt-6 sm:mt-8 flex items-center justify-center relative z-20">
-              <div className="group flex items-center gap-3 sm:gap-5 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors duration-700 cursor-default">
+              <div className="group flex items-center gap-3 sm:gap-5 text-[10px] sm:text-[15px] font-mono uppercase tracking-[0.3em] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors duration-700 cursor-default">
                 <span className="flex items-center gap-2">
                   <span className="italic text-primary/40 group-hover:text-primary/70 lowercase tracking-widest transition-colors duration-700">swayatta</span>
                   <span className="opacity-30">/</span>

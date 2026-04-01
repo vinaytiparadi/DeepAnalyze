@@ -29,20 +29,20 @@ export function ThemeSelector({ value, onValueChange }: ThemeSelectorProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="group flex size-9 sm:size-10 items-center justify-center rounded-none bg-secondary/30 transition-all hover:bg-secondary/60 border border-border/20 hover:border-border/50 flex-shrink-0"
+          className="group flex size-8 sm:size-8 items-center justify-center rounded-none bg-secondary/30 transition-all hover:bg-secondary/60 border border-border/20 hover:border-border/50 flex-shrink-0"
           title={`Aesthetic: ${current.label}`}
           onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         >
-          <Palette className="size-3.5 sm:size-4 text-primary group-hover:scale-110 transition-transform" />
+          <Palette className="size-3 text-primary group-hover:scale-110 transition-transform" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-48 rounded-none border border-border bg-popover/95 backdrop-blur-md p-1.5 shadow-xl"
+        className="w-44 rounded-none border border-border bg-popover/95 backdrop-blur-md p-1 shadow-xl"
         align="start"
         side="top"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="px-3 pb-2 pt-1 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground/80 border-b border-border/30 mb-1">
+        <p className="px-2.5 pb-1.5 pt-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground/80 border-b border-border/30 mb-0.5">
           Pick_Aesthetic
         </p>
         <div className="space-y-0.5">
@@ -56,7 +56,7 @@ export function ThemeSelector({ value, onValueChange }: ThemeSelectorProps) {
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-none px-3 py-2 text-[10px] font-mono uppercase tracking-widest transition-colors hover:bg-accent hover:text-accent-foreground border-l-2 border-transparent hover:border-primary",
+                  "flex w-full items-center justify-between rounded-none px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-widest transition-colors hover:bg-accent hover:text-accent-foreground border-l-2 border-transparent hover:border-primary",
                   isSelected && "bg-accent/50 text-accent-foreground border-primary"
                 )}
               >
@@ -64,7 +64,7 @@ export function ThemeSelector({ value, onValueChange }: ThemeSelectorProps) {
                   {t.label}
                   {t.id === "surprise" && <Sparkles className="size-3 text-primary/70" />}
                 </span>
-                {isSelected && <Check className="size-3.5 text-muted-foreground" />}
+                {isSelected && <Check className="size-2.5 text-muted-foreground" />}
               </button>
             );
           })}

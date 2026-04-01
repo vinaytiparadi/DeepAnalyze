@@ -117,11 +117,11 @@ export function PromptInputEnhanced({
       {/* Structural Bottom Actions */}
       <PromptInputActions className="flex flex-wrap items-center justify-between border-t border-border/40 pt-3 mt-1 gap-y-3">
         {/* Left: Operations */}
-        <div className="flex items-center flex-wrap gap-0.5 sm:gap-1 flex-shrink-0">
+        <div className="flex items-center flex-wrap gap-0.5 flex-shrink-0">
           <PromptInputAction tooltip="Attach Dataset [CSV, PDF, etc]">
             <label
               htmlFor="file-upload"
-              className="group flex size-9 sm:size-10 cursor-pointer items-center justify-center border border-border/20 bg-secondary/30 hover:bg-secondary/60 transition-all rounded-none flex-shrink-0"
+              className="group flex size-8 sm:size-8 cursor-pointer items-center justify-center border border-border/20 bg-secondary/30 hover:bg-secondary/60 transition-all rounded-none flex-shrink-0"
             >
               <input
                 ref={uploadInputRef}
@@ -131,7 +131,7 @@ export function PromptInputEnhanced({
                 className="hidden"
                 id="file-upload"
               />
-              <Paperclip className="text-primary size-3.5 sm:size-4" />
+              <Paperclip className="text-primary size-3" />
             </label>
           </PromptInputAction>
 
@@ -150,7 +150,7 @@ export function PromptInputEnhanced({
               <PopoverTrigger asChild>
                 <button
                   className={cn(
-                    "flex items-center gap-2 h-9 sm:h-10 px-3 sm:px-3.5 border transition-all rounded-none group relative",
+                    "flex items-center gap-1.5 h-8 sm:h-8 px-2 sm:px-2.5 border transition-all rounded-none group relative",
                     engine === "gemini"
                       ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
                       : "border-border/20 bg-secondary/30 text-foreground hover:bg-secondary/60",
@@ -160,47 +160,47 @@ export function PromptInputEnhanced({
                   title={engine === "gemini" ? "Engine: Gemini 3 Flash (API)" : "Engine: DeepAnalyze-8B (Local)"}
                 >
                   {engine === "gemini" ? (
-                    <Zap className="size-3.5 text-blue-500 shrink-0" />
+                    <Zap className="size-3 text-blue-500 shrink-0" />
                   ) : (
-                    <Package className="size-3.5 text-primary shrink-0" />
+                    <Package className="size-3 text-primary shrink-0" />
                   )}
-                  <span className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.15em] font-bold">
+                  <span className="font-mono text-[8px] sm:text-[9px] uppercase tracking-[0.1em] font-bold">
                     {engine === "gemini" ? "Gemini" : "DeepAnalyze"}
                   </span>
-                  <ChevronDown className={cn("size-2.5 opacity-40 group-hover:opacity-100 transition-transform", enginePopoverOpen && "rotate-180")} />
+                  <ChevronDown className={cn("size-2 opacity-40 group-hover:opacity-100 transition-transform", enginePopoverOpen && "rotate-180")} />
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-48 rounded-none border border-border bg-popover/95 backdrop-blur-md p-1.5 shadow-xl"
+                className="w-44 rounded-none border border-border bg-popover/95 backdrop-blur-md p-1 shadow-xl"
                 align="start"
                 side="top"
                 onClick={(e) => e.stopPropagation()}
               >
-                <p className="px-3 pb-2 pt-1 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground/80 border-b border-border/30 mb-1">
+                <p className="px-2.5 pb-1.5 pt-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground/80 border-b border-border/30 mb-0.5">
                   Select_Engine
                 </p>
                 <div className="space-y-0.5">
                   <button
                     onClick={() => { onEngineChange("deepanalyze"); setEnginePopoverOpen(false); }}
                     className={cn(
-                      "w-full text-left px-3 py-2 text-[10px] font-mono uppercase tracking-widest transition-colors flex items-center gap-2.5 border-l-2 border-transparent hover:bg-accent hover:text-accent-foreground hover:border-primary",
+                      "w-full text-left px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-widest transition-colors flex items-center gap-2 border-l-2 border-transparent hover:bg-accent hover:text-accent-foreground hover:border-primary",
                       engine === "deepanalyze" && "bg-accent/50 text-foreground border-primary font-bold"
                     )}
                   >
-                    <Package className="size-3.5 text-primary" />
+                    <Package className="size-3 text-primary" />
                     DeepAnalyze-8B
-                    {engine === "deepanalyze" && <Check className="size-3 ml-auto text-muted-foreground" />}
+                    {engine === "deepanalyze" && <Check className="size-2.5 ml-auto text-muted-foreground" />}
                   </button>
                   <button
                     onClick={() => { onEngineChange("gemini"); setEnginePopoverOpen(false); }}
                     className={cn(
-                      "w-full text-left px-3 py-2 text-[10px] font-mono uppercase tracking-widest transition-colors flex items-center gap-2.5 border-l-2 border-transparent hover:bg-accent hover:text-accent-foreground hover:border-blue-500",
+                      "w-full text-left px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-widest transition-colors flex items-center gap-2 border-l-2 border-transparent hover:bg-accent hover:text-accent-foreground hover:border-blue-500",
                       engine === "gemini" && "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500 font-bold"
                     )}
                   >
-                    <Zap className="size-3.5 text-blue-500" />
+                    <Zap className="size-3 text-blue-500" />
                     Gemini 3 Flash
-                    {engine === "gemini" && <Check className="size-3 ml-auto text-muted-foreground" />}
+                    {engine === "gemini" && <Check className="size-2.5 ml-auto text-muted-foreground" />}
                   </button>
                 </div>
               </PopoverContent>
@@ -212,13 +212,13 @@ export function PromptInputEnhanced({
                 <button
                   onClick={(e) => { e.stopPropagation(); onPlanRouterEnabledChange(!planRouterEnabled); }}
                   className={cn(
-                    "flex items-center justify-center size-9 sm:size-10 border transition-all rounded-none",
+                    "flex items-center justify-center size-8 sm:size-8 border transition-all rounded-none",
                     planRouterEnabled
                       ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
                       : "border-border/20 bg-secondary/30 text-foreground hover:bg-secondary/60"
                   )}
                 >
-                  <Sparkles className={cn("size-3.5 sm:size-4", planRouterEnabled ? "text-amber-500" : "text-muted-foreground/60")} />
+                  <Sparkles className={cn("size-3", planRouterEnabled ? "text-amber-500" : "text-muted-foreground/60")} />
                 </button>
               </PromptInputAction>
             )}
@@ -226,13 +226,13 @@ export function PromptInputEnhanced({
         </div>
 
         {/* Right: Execute */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 ml-auto sm:ml-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 ml-auto sm:ml-0">
           <PromptInputAction tooltip="Voice Command [Inactive]">
             <button
-              className="size-9 sm:size-10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors border border-transparent hover:border-border/20 rounded-none flex-shrink-0"
+              className="size-8 sm:size-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors border border-transparent hover:border-border/20 rounded-none flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <Mic className="size-3.5 sm:size-4" />
+              <Mic className="size-3" />
             </button>
           </PromptInputAction>
 
@@ -242,18 +242,18 @@ export function PromptInputEnhanced({
             <Button
               variant="default"
               size="sm"
-              className="h-9 sm:h-10 rounded-none px-4 sm:px-6 font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.3em] bg-foreground text-background hover:bg-primary hover:text-primary-foreground transition-all shadow-lg shadow-primary/10 whitespace-nowrap"
+              className="h-8 sm:h-8 rounded-none px-3 sm:px-4 font-mono text-[8px] sm:text-[9px] uppercase tracking-[0.2em] bg-foreground text-background hover:bg-primary hover:text-primary-foreground transition-all shadow-lg shadow-primary/10 whitespace-nowrap"
               onClick={onSubmit}
             >
               {isLoading ? (
-                <div className="flex items-center gap-2.5">
-                  <Square className="size-3.5 fill-current" />
+                <div className="flex items-center gap-1.5">
+                  <Square className="size-3 fill-current" />
                   <span>Halt</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5">
                   <span className="mt-0.5">Execute</span>
-                  <ArrowUp className="size-3.5" />
+                  <ArrowUp className="size-3" />
                 </div>
               )}
             </Button>
