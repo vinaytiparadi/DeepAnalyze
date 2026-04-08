@@ -126,6 +126,8 @@ const REPORT_THEMES = [
   { id: "academic", label: "Academic" },
   { id: "aura", label: "Aura" },
   { id: "surprise", label: "Surprise me" },
+  { id: "dossier", label: "Old School" },
+  { id: "blueprint", label: "Engineering" },
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -527,7 +529,12 @@ export function AnalyzePage({
 
   const handleSendFollowUp = useCallback(async () => {
     const text = followUpInput.trim();
-    if (!text && followUpFiles.length === 0) return;
+    if (!text && followUpFiles.length === 0) {
+      if (phase === "complete" && reportStatus !== "generating") {
+        handleRegenerateReport();
+      }
+      return;
+    }
     const followUpFileNames = followUpFiles.map((f) => f.name);
     let updatedWsFiles = workspaceFileNames;
     if (followUpFiles.length > 0) {
@@ -1265,7 +1272,7 @@ export function AnalyzePage({
                         </Button>
                       </PromptInputAction>
                     </div>
-                    <PromptInputAction tooltip={phase === "streaming" ? "Stop" : "Send"}>
+                    <PromptInputAction tooltip={phase === "streaming" ? "Stop" : (phase === "complete" && !followUpInput.trim() ? "Regenerate Report" : "Send")}>
                       <Button variant="default" size="icon" className="h-8 w-8 rounded-none font-mono shadow-sm transition-all border border-transparent hover:border-primary/50 opacity-90 hover:opacity-100"
                         onClick={phase === "streaming" ? handleStop : handleSendFollowUp}>
                         {phase === "streaming" ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4" />}

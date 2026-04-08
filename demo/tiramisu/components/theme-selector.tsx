@@ -14,6 +14,8 @@ const REPORT_THEMES = [
   { id: "academic", label: "Academic" },
   { id: "aura", label: "Aura" },
   { id: "surprise", label: "Surprise me" },
+  { id: "dossier", label: "Old School" },
+  { id: "blueprint", label: "Engineering" },
 ] as const;
 
 interface ThemeSelectorProps {
