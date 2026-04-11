@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routers.chat import router as chat_router
 from .routers.export import router as export_router
+from .routers.sessions import router as sessions_router
 from .routers.workspace import router as workspace_router
 
 
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router)
     app.include_router(chat_router)
     app.include_router(export_router)
+    app.include_router(sessions_router)
     return app
 
 

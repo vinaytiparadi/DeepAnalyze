@@ -921,11 +921,12 @@ export function AnalyzePage({
 
         {/* Integrated Header Bar — occupies the top space ("green area") */}
         <div className="flex items-center justify-between px-4 sm:px-8 h-12 flex-shrink-0 z-40 bg-background/20 backdrop-blur-xl border-b border-border/5">
-          {/* Top Left */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            <span className="font-display font-medium text-lg sm:text-xl tracking-tight text-foreground lowercase leading-none">
-              <span className="text-primary italic pr-[1px]">sway</span>lytics<span className="text-primary font-bold italic tracking-tighter">.</span>
-            </span>
+          {/* Top Left - Breadcrumb / Title */}
+          <div className="flex items-center gap-3 sm:gap-4 ml-8 lg:ml-0">
+             <div className="flex items-center gap-2">
+               <div className="w-1.5 h-1.5 bg-primary/40 rotate-45" />
+               <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60 font-bold">Analysis_Session</span>
+             </div>
           </div>
 
           {/* Top Right */}

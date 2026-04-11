@@ -106,6 +106,53 @@ export async function clearWorkspace(sessionId: string): Promise<void> {
   });
 }
 
+// ─── Session Management ─────────────────────────────────────────────
+
+export interface Session {
+  id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+  engine?: EngineType;
+}
+
+export interface SessionDetail extends Session {
+  messages: { role: string; content: string }[];
+  plan?: string | null;
+  report_theme?: string;
+}
+
+export async function listSessions(): Promise<Session[]> {
+  const res = await fetch(`${BACKEND_URL}/sessions`);
+  const data = await res.json();
+  return data.sessions || [];
+}
+
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}`);
+  if (!res.ok) throw new Error(`Session not found: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+}
+
+export async function updateSessionTitle(
+  sessionId: string,
+  title: string
+): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/title`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Rename failed: ${res.status}`);
+}
+
 // ─── HTML Report Generation ──────────────────────────────────────────
 
 export interface HtmlReportResult {
