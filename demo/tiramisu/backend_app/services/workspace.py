@@ -132,12 +132,12 @@ def collect_file_info(source: str | Path | Sequence[str | Path]) -> str:
                 [
                     path
                     for path in candidate.iterdir()
-                    if path.is_file() and path.name != GENERATED_INDEX_FILENAME
+                    if path.is_file() and path.name not in {GENERATED_INDEX_FILENAME, "session_state.json"}
                 ],
                 key=lambda path: path.name.lower(),
             )
         elif candidate.is_file():
-            if candidate.name == GENERATED_INDEX_FILENAME:
+            if candidate.name in {GENERATED_INDEX_FILENAME, "session_state.json"}:
                 return ""
             file_paths = [candidate]
     else:
@@ -146,7 +146,7 @@ def collect_file_info(source: str | Path | Sequence[str | Path]) -> str:
             if (
                 not candidate.exists()
                 or not candidate.is_file()
-                or candidate.name == GENERATED_INDEX_FILENAME
+                or candidate.name in {GENERATED_INDEX_FILENAME, "session_state.json"}
             ):
                 continue
             resolved = candidate.resolve()
@@ -514,7 +514,7 @@ def resolve_workspace_path(session_id: str, relative_path: str = "") -> Path:
 
 
 def _is_internal_workspace_file(path: Path) -> bool:
-    return path.name == GENERATED_INDEX_FILENAME
+    return path.name in {GENERATED_INDEX_FILENAME, "session_state.json"}
 
 
 def _is_generated_workspace_path(rel_path: str, generated_index: set[str]) -> bool:
