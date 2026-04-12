@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import logging
 import re
 import textwrap
+import time
 from typing import Any
 
 import httpx
@@ -21,6 +23,10 @@ PROFILE_END = "__PROFILE_JSON_END__"
 GEMINI_API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
+
+_GEMINI_MAX_RETRIES = 3
+_GEMINI_RETRY_BACKOFF = [2, 4, 8]  # seconds
+_GEMINI_RETRYABLE_STATUS = {429, 500, 502, 503}
 
 GEMINI_PROMPT_TEMPLATE = textwrap.dedent("""\
     You are an expert data science planning assistant. Given a user's analysis \
@@ -197,23 +203,48 @@ async def call_gemini_planner(user_prompt: str, data_profile: dict) -> str:
 
     url = GEMINI_API_URL.format(model=settings.gemini_model)
 
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            url,
-            headers={"x-goog-api-key": settings.gemini_api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt_text}]}],
-                "generationConfig": {
-                    "temperature": 1.0,
-                    "thinkingConfig": {
-                        "thinkingLevel": "medium",
+        for attempt in range(_GEMINI_MAX_RETRIES):
+            try:
+                resp = await client.post(
+                    url,
+                    headers={"x-goog-api-key": settings.gemini_api_key},
+                    json={
+                        "contents": [{"parts": [{"text": prompt_text}]}],
+                        "generationConfig": {
+                            "temperature": 1.0,
+                            "thinkingConfig": {
+                                "thinkingLevel": "medium",
+                            },
+                        },
                     },
-                },
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+                )
+                if resp.status_code in _GEMINI_RETRYABLE_STATUS:
+                    wait = _GEMINI_RETRY_BACKOFF[min(attempt, len(_GEMINI_RETRY_BACKOFF) - 1)]
+                    log.warning(
+                        "Gemini planner returned %s, retrying in %ds (attempt %d/%d)",
+                        resp.status_code, wait, attempt + 1, _GEMINI_MAX_RETRIES,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in _GEMINI_RETRYABLE_STATUS:
+                    last_exc = exc
+                    wait = _GEMINI_RETRY_BACKOFF[min(attempt, len(_GEMINI_RETRY_BACKOFF) - 1)]
+                    log.warning(
+                        "Gemini planner HTTP %s, retrying in %ds (attempt %d/%d)",
+                        exc.response.status_code, wait, attempt + 1, _GEMINI_MAX_RETRIES,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Gemini planner: all retries exhausted")
 
 
 async def generate_plan(
@@ -310,21 +341,46 @@ def _extract_analysis_highlights(conversation: list[dict[str, str]]) -> str:
 
 def _call_gemini_sync(prompt_text: str, *, temperature: float = 0.7) -> str:
     url = GEMINI_API_URL.format(model=settings.gemini_model)
+    last_exc: Exception | None = None
     with httpx.Client(timeout=120) as client:
-        resp = client.post(
-            url,
-            headers={"x-goog-api-key": settings.gemini_api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt_text}]}],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "thinkingConfig": {"thinkingLevel": "medium"},
-                },
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        for attempt in range(_GEMINI_MAX_RETRIES):
+            try:
+                resp = client.post(
+                    url,
+                    headers={"x-goog-api-key": settings.gemini_api_key},
+                    json={
+                        "contents": [{"parts": [{"text": prompt_text}]}],
+                        "generationConfig": {
+                            "temperature": temperature,
+                            "thinkingConfig": {"thinkingLevel": "medium"},
+                        },
+                    },
+                )
+                if resp.status_code in _GEMINI_RETRYABLE_STATUS:
+                    wait = _GEMINI_RETRY_BACKOFF[min(attempt, len(_GEMINI_RETRY_BACKOFF) - 1)]
+                    log.warning(
+                        "Gemini returned %s, retrying in %ds (attempt %d/%d)",
+                        resp.status_code, wait, attempt + 1, _GEMINI_MAX_RETRIES,
+                    )
+                    time.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in _GEMINI_RETRYABLE_STATUS:
+                    last_exc = exc
+                    wait = _GEMINI_RETRY_BACKOFF[min(attempt, len(_GEMINI_RETRY_BACKOFF) - 1)]
+                    log.warning(
+                        "Gemini HTTP %s, retrying in %ds (attempt %d/%d)",
+                        exc.response.status_code, wait, attempt + 1, _GEMINI_MAX_RETRIES,
+                    )
+                    time.sleep(wait)
+                    continue
+                raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Gemini: all retries exhausted")
 
 
 ERROR_RECOVERY_PROMPT = textwrap.dedent("""\
