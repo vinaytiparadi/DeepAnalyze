@@ -3,7 +3,7 @@
 Thumbs.db
 ehthumbs.db
 
-# Python files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -20,16 +20,19 @@ wheels/
 .vscode/
 .trae/
 
-#other
+# Env files
+.env*
+
+# Misc
+*.pem
+
+# Claude / agents (local tooling)
 **/.claude/
-**/workspace/
-**/CLAUDE.md
-**/logs/
-*.env
-*.env.local
-*.env.development
-*.env.production
-*.env.test
 **/.agent/
 **/.agents/
 **/skills-lock.json
+
+# Project-specific
+**/workspace/
+**/CLAUDE.md
+**/logs/
