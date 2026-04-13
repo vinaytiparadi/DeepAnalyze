@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 const REPORT_THEMES = [
   { id: "literature", label: "Literature" },
   { id: "academic", label: "Academic" },
-  { id: "aura", label: "Aura" },
   { id: "surprise", label: "Surprise me" },
   { id: "dossier", label: "Old School" },
   { id: "blueprint", label: "Engineering" },
